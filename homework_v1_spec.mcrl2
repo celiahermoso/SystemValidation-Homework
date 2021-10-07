@@ -1,0 +1,33 @@
+sort 
+	Door = struct D1|D2|D3|D4; %each door that we have
+	Sluice = struct Sluice1|Sluice2; %the two sluices
+	Robot = struct R1|R2|R3; %the three robots
+	DoorType = struct Inside|Outside; %the placement of the doors
+	WaitingRack = struct Unprojected ? isUnprojectedEmtpy | Projected ? isProjectedEmpty; %waiting racks, with ways to check if they are empty or not
+	OutsideRack = struct Input|Output; %outside racks
+act 
+  	closeDoor, openDoor: Sluice # DoorType; %closing and opening a door: we map this to a sluice and its door type
+	pump: Sluice; %pumping the air out of a sluice
+
+map
+	sluiceDoor: Sluice # DoorType -> Door; %we map each door to a sluice and a placement, for example D1 is the outside door of sluice1
+
+eqn
+	%door mappings
+	sluiceDoor(Sluice1, Outside) = D1;
+	sluiceDoor(Sluice1, Inside) = D2;
+	sluiceDoor(Sluice2, Outside) = D3;
+	sluiceDoor(Sluice2, Inside) = D4;
+
+proc
+	%we close the inside door, open the outside door, and after that, we can follow up with the inside door opening sequence
+    SluiceOutOpen(s:Sluice) = closeDoor(s, Inside).openDoor(s, Outside).SluiceInOpen(s);
+	%we close the outside door, pump the air out, open the inside door, and after that, we can follow up with the outside door opening sequence
+	SluiceInOpen(s:Sluice) = closeDoor(s, Outside).pump(s).openDoor(s, Inside).SluiceOutOpen(s);
+
+init
+  allow(
+    { closeDoor, openDoor, pump},
+    
+       SluiceOutOpen(Sluice1) || SluiceInOpen(Sluice2) %just an example start: we can either open the outside of sluice1 or open the inside of sluice 2, these can go paralell
+   ) ;

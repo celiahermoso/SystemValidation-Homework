@@ -5,9 +5,14 @@ sort
 	DoorType = struct Inside|Outside; %the placement of the doors
 	WaitingRack = struct Unprojected ? isUnprojectedEmtpy | Projected ? isProjectedEmpty; %waiting racks, with ways to check if they are empty or not
 	OutsideRack = struct Input|Output; %outside racks
+	Position = struct IR|S1|S2|WR_I|WR_O|IPS|OR;
+	Status = struct Empty|Full;
 act 
   	closeDoor, openDoor: Sluice # DoorType; %closing and opening a door: we map this to a sluice and its door type
 	pump: Sluice; %pumping the air out of a sluice
+	moveRobot : Position # Position;
+	placeWafer: Sluice; %place wafer into a sluice
+	retrieveWafer: Sluice;%retrieve wafer into a sluice
 
 map
 	sluiceDoor: Sluice # DoorType -> Door; %we map each door to a sluice and a placement, for example D1 is the outside door of sluice1
@@ -24,12 +29,13 @@ proc
     SluiceOutOpen(s:Sluice) = closeDoor(s, Inside).openDoor(s, Outside).SluiceInOpen(s);
 	%we close the outside door, pump the air out, open the inside door, and after that, we can follow up with the outside door opening sequence
 	SluiceInOpen(s:Sluice) = closeDoor(s, Outside).pump(s).openDoor(s, Inside).SluiceOutOpen(s);
+	RobotOut = SluiceOutOpen(Sluice1).moveRobot(IR,S1).placeWafer(Sluice1) + SluiceOutOpen(Sluice2).moveRobot(IR,S2).placeWafer(Sluice2) ;
 
 init
   allow(
-    { closeDoor, openDoor, pump},
+    { closeDoor, openDoor, pump, moveRobot, placeWafer},
     
-       SluiceOutOpen(Sluice1) || SluiceInOpen(Sluice2) %just an example start: we can either open the outside of sluice1 or open the inside of sluice 2, these can go paralell
+       SluiceOutOpen(Sluice1) || SluiceInOpen(Sluice2)||RobotOut %just an example start: we can either open the outside of sluice1 or open the inside of sluice 2, these can go paralell
    ) ;
 
 %comment

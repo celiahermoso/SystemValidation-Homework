@@ -31,3 +31,5 @@ init
     
        SluiceOutOpen(Sluice1) || SluiceInOpen(Sluice2) %just an example start: we can either open the outside of sluice1 or open the inside of sluice 2, these can go paralell
    ) ;
+
+%comment

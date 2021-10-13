@@ -54,7 +54,7 @@ proc
 	
 
 	outsideRobot = 
-		sum s: Sluice.(moveToSluice(R1, IR)); % + moveToRack(R1, Input) + moveToRack(R1, Output)).outsideRobot;
+		moveToSluice(R1, IR).outsideRobot; % + moveToRack(R1, Input) + moveToRack(R1, Output)).outsideRobot;
 
 	moveToSluice(r: Robot, p: Position) =
 		sum s: Sluice.moveRequestToSluice_Sent(r,s).(moveResponseFromSluice_Received(s, true).move(r,sluiceToPosition(s),p) + moveResponseFromSluice_Received(s, false));
@@ -95,14 +95,14 @@ proc
 
 init
   allow(
-    { closeDoor, openDoor, pump, moveRequestToSluice, moveResponseFromSluice, moveRequestToRack, moveResponseFromRack},
+    { closeDoor, openDoor, pump, moveRequestToSluice, moveResponseFromSluice, moveRequestToRack, moveResponseFromRack, move},
 		comm(
 			{moveRequestToSluice_Sent | moveRequestToSluice_Received -> moveRequestToSluice,
 			moveResponseFromSluice_Sent | moveResponseFromSluice_Received -> moveResponseFromSluice,
 			moveRequestToRack_Sent | moveRequestToRack_Received  -> moveRequestToRack,
 			moveResponseFromRack_Sent | moveResponseFromRack_Received -> moveResponseFromRack},
 			
-			outsideRobot || sluiceOperation(Sluice1, false, false)
+			outsideRobot || sluiceOperation(Sluice1, false, false) || sluiceOperation(Sluice2, false, false)
     	
        	%SluiceOutOpen(Sluice1) || SluiceInOpen(Sluice2)||RobotOut %just an example start: we can either open the outside of sluice1 or open the inside of sluice 2, these can go paralell
 		%SluiceOutOpen(Sluice1, false, false, R1)

@@ -3,39 +3,109 @@ sort
 	Sluice = struct Sluice1|Sluice2; %the two sluices
 	Robot = struct R1|R2|R3; %the three robots
 	DoorType = struct Inside|Outside; %the placement of the doors
-	WaitingRack = struct Unprojected ? isUnprojectedEmtpy | Projected ? isProjectedEmpty; %waiting racks, with ways to check if they are empty or not
-	OutsideRack = struct Input|Output; %outside racks
+	%WaitingRack = struct Unprojected ? isUnprojectedEmtpy | Projected ? isProjectedEmpty; %waiting racks, with ways to check if they are empty or not
+	%OutsideRack = struct Input|Output; %outside racks
+
+	Rack = struct Unprojected ? isUnprojectedEmtpy | Projected ? isProjectedEmpty | Input | Output;
+	
 	Position = struct IR|S1|S2|WR_I|WR_O|IPS|OR;
 	Status = struct Empty|Full;
 act 
-  	closeDoor, openDoor: Sluice # DoorType; %closing and opening a door: we map this to a sluice and its door type
+  	closeDoor, openDoor, stuckDoor: Sluice # DoorType; %closing and opening a door: we map this to a sluice and its door type
 	pump: Sluice; %pumping the air out of a sluice
 	moveRobot : Position # Position;
 	placeWafer: Sluice; %place wafer into a sluice
 	retrieveWafer: Sluice;%retrieve wafer into a sluice
 
+	move: Robot # Position # Position;
+
+	moveRequestToSluice_Sent, moveRequestToSluice_Received, moveRequestToSluice: Robot # Sluice;
+	moveResponseFromSluice_Sent, moveResponseFromSluice_Received, moveResponseFromSluice: Sluice # Bool; 
+	moveRequestToRack_Sent, moveRequestToRack_Received, moveRequestToRack: Robot # Rack;
+	moveResponseFromRack_Sent, moveResponseFromRack_Received, moveResponseFromRack: Bool;
+	%doorOpenRequest_Send, doorOpenRequest_Response: Sluice # Door;
+	%doorCloseRequest_Send, doorCloseRequest_Response: Sluice # Door;
+
 map
 	sluiceDoor: Sluice # DoorType -> Door; %we map each door to a sluice and a placement, for example D1 is the outside door of sluice1
+	sluiceToPosition: Sluice -> Position;
+
+	rackToPosition: Rack -> Position;
 
 eqn
+	%sluice mappings
+	sluiceToPosition(Sluice1) = S1;
+	sluiceToPosition(Sluice2) = S2;
+	
 	%door mappings
 	sluiceDoor(Sluice1, Outside) = D1;
 	sluiceDoor(Sluice1, Inside) = D2;
 	sluiceDoor(Sluice2, Outside) = D3;
 	sluiceDoor(Sluice2, Inside) = D4;
 
+	%rack mappings
+	rackToPosition(Input) = IR;
+	rackToPosition(Output) = OR;
+	rackToPosition(Unprojected) = WR_I;
+	rackToPosition(Projected) = WR_O;
+
 proc
+	
+	
+
+	outsideRobot = 
+		sum s: Sluice.(moveToSluice(R1, IR)); % + moveToRack(R1, Input) + moveToRack(R1, Output)).outsideRobot;
+
+	moveToSluice(r: Robot, p: Position) =
+		sum s: Sluice.moveRequestToSluice_Sent(r,s).(moveResponseFromSluice_Received(s, true).move(r,sluiceToPosition(s),p) + moveResponseFromSluice_Received(s, false));
+	
+
+	sluiceOperation(s: Sluice, outsideOpen: Bool, insideOpen: Bool) =
+			(!insideOpen && !outsideOpen) -> 
+				sum r: Robot.moveRequestToSluice_Received(r,s). 
+					(((r == R1) -> 
+						openDoor(s, Outside).pump(s).moveResponseFromSluice_Sent(s, true).sluiceOperation(s, true, false)) + 
+					((r == R2) -> 
+						openDoor(s, Inside).pump(s).moveResponseFromSluice_Sent(s, true).sluiceOperation(s, false, true)));
+
+	%sluiceAsd(s:Sluice, outsideOpen: Bool, insideOpen: Bool) = 
+	%(!insideOpen && !outsideOpen) -> 
+	%sum r: Robot.(moveRequestToSluce_Received(r,s) ->
+	%((r == R1) ->
+	%(openDoor(s, Outside).pump(s).moveResponseFromSluice_Sent(s, true).sluiceOperation(s, true, false))) +
+	%((r == R2) ->
+	%(openDoor(s, Inside).pump(s).moveResponseFromSluice_Sent(s, true).sluiceOperation(s, false, true)));
+
+	%moveToRack(r: Robot, ra: Rack, occupied: Bool)
+		
+	
+
+	
+				
+
+
 	%we close the inside door, open the outside door, and after that, we can follow up with the inside door opening sequence
-    SluiceOutOpen(s:Sluice) = closeDoor(s, Inside).openDoor(s, Outside).SluiceInOpen(s);
+    %SluiceOutOpen(s:Sluice, outsideOpen: Bool, insideOpen: Bool, r: Robot) = 
+	%sum r: Robot, sl: Sluice.(moveRequestToSluice_   
+	%moveRequestToSluice_Received(r, s, sluiceDoor(s, Outside)).openDoor(s, Outside).moveResponseFromSluice_Sent(r, s, sluiceDoor(s, Outside), true);
 	%we close the outside door, pump the air out, open the inside door, and after that, we can follow up with the outside door opening sequence
-	SluiceInOpen(s:Sluice) = closeDoor(s, Outside).pump(s).openDoor(s, Inside).SluiceOutOpen(s);
-	RobotOut = SluiceOutOpen(Sluice1).moveRobot(IR,S1).placeWafer(Sluice1) + SluiceOutOpen(Sluice2).moveRobot(IR,S2).placeWafer(Sluice2) ;
+	%SluiceInOpen(s:Sluice) = closeDoor(s, Outside).pump(s).openDoor(s, Inside).SluiceOutOpen(s);
+	%RobotOut = SluiceOutOpen(Sluice1).moveRobot(IR,S1).placeWafer(Sluice1) + SluiceOutOpen(Sluice2).moveRobot(IR,S2).placeWafer(Sluice2) ;
+	%RobotIn = 
 
 init
   allow(
-    { closeDoor, openDoor, pump, moveRobot, placeWafer},
-    
-       SluiceOutOpen(Sluice1) || SluiceInOpen(Sluice2)||RobotOut %just an example start: we can either open the outside of sluice1 or open the inside of sluice 2, these can go paralell
-   ) ;
+    { closeDoor, openDoor, pump, moveRequestToSluice, moveResponseFromSluice, moveRequestToRack, moveResponseFromRack},
+		comm(
+			{moveRequestToSluice_Sent | moveRequestToSluice_Received -> moveRequestToSluice,
+			moveResponseFromSluice_Sent | moveResponseFromSluice_Received -> moveResponseFromSluice,
+			moveRequestToRack_Sent | moveRequestToRack_Received  -> moveRequestToRack,
+			moveResponseFromRack_Sent | moveResponseFromRack_Received -> moveResponseFromRack},
+			
+			outsideRobot || sluiceOperation(Sluice1, false, false)
+    	
+       	%SluiceOutOpen(Sluice1) || SluiceInOpen(Sluice2)||RobotOut %just an example start: we can either open the outside of sluice1 or open the inside of sluice 2, these can go paralell
+		%SluiceOutOpen(Sluice1, false, false, R1)
+   )) ;
 
 %comment

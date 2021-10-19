@@ -1,143 +1,117 @@
 sort 
-	Door = struct D1|D2|D3|D4; %each door that we have
-	Sluice = struct Sluice1|Sluice2; %the two sluices
-	Robot = struct R1|R2|R3; %the three robots
-	DoorType = struct Inside|Outside; %the placement of the doors
-	%WaitingRack = struct Unprojected ? isUnprojectedEmtpy | Projected ? isProjectedEmpty; %waiting racks, with ways to check if they are empty or not
-	%OutsideRack = struct Input|Output; %outside racks
+  Sluice = struct S1|S2; %the two sluices
+  Robot = struct R1|R2; %the three robots
+  DoorType = struct Inside|Outside; %the placement of the doors
+  %WaitingRack = struct Unprojected ? isUnprojectedEmpty | Projected ? isProjectedEmpty; %waiting racks, with ways to check if they are empty or not
+  %OutsideRack = struct Input|Output; %outside racks
+  Position = struct IR|WR_I|WR_O|OR|IPS|S1_Out|S1_In|S2_Out|S2_In;
+ % Status = struct Empty?isEmpty|Full|UnProjected|Projected?isProjected;
+  %PositionStatus = Position -> Status;
+  %Component = struct R1|R2;
+	Wafer = struct Empty | Projected | Unprojected;
 
-	Rack = struct WaitingRackInput ? isWaitingRackInputEmtpy | WaitingRackOutput ? isWaitingRackOutputEmpty | Input | Output;
-	Wafer = struct Unprojected | Projected;
-	Position = struct IR|S1|S2|WR_I|WR_O|IPS|OR;
-	Status = struct Empty|Full;
-act 
-  	closeDoor, openDoor, stuckDoor: Sluice # DoorType; %closing and opening a door: we map this to a sluice and its door type
-	pump: Sluice; %pumping the air out of a sluice
-	moveRobot : Position # Position;
+map 
+  %GreenSig : Position -> Status;
+  %SluiceDoor : Sluice # DoorType;
+ % Initial : Position->Status;
+  %Update : PositionStatus # Position # Position -> PositionStatus;
+  SluiceMap : Sluice # DoorType -> Position;
+  isOpen : Sluice # DoorType -> Bool;
+  isClose : Sluice # DoorType -> Bool;
 
-	placeWafer_Sent, placeWafer_Received, placeWafer: Robot # Position # Wafer; 
-	receivedWafer, giveWafer, waferPlaced: Position # Wafer; %place wafer into a sluice
-	pickUpWafer_Sent, pickUpWafer_Received, pickUpWafer: Robot # Position # Wafer;
-	
-	waferSignal_Sent, waferSignal_Received, waferSignal: Robot # Position # Wafer;
-	waferHere_Sent, waferHere_Received, waferHere: Robot # Position # Wafer;
-
-	move: Robot # Position # Position;
-
-	waferTest: Wafer;
-	
-	moveRequestToSluice_Sent, moveRequestToSluice_Received, moveRequestToSluice: Robot # Sluice;
-	moveResponseFromSluice_Sent, moveResponseFromSluice_Received, moveResponseFromSluice: Sluice # Bool; 
-	moveRequestToRack_Sent, moveRequestToRack_Received, moveRequestToRack: Robot # Rack;
-	moveResponseFromRack_Sent, moveResponseFromRack_Received, moveResponseFromRack: Rack # Bool;
-	moveSuccess_Sent, moveSuccess_Received, moveSuccess: Sluice;
-	moveFailed_Sent, moveFailed_Received, moveFailed: Robot;
-	%doorOpenRequest_Send, doorOpenRequest_Response: Sluice # Door;
-	%doorCloseRequest_Send, doorCloseRequest_Response: Sluice # Door;
-
-map
-	sluiceDoor: Sluice # DoorType -> Door; %we map each door to a sluice and a placement, for example D1 is the outside door of sluice1
-	sluiceToPosition: Sluice -> Position;
-
-	rackToPosition: Rack -> Position;
+var
+  p:Position;
+ % ps:PositionStatus;
+  src,des:Position;
+  %sd:SluiceDoor;
 
 eqn
-	%sluice mappings
-	sluiceToPosition(Sluice1) = S1;
-	sluiceToPosition(Sluice2) = S2;
-	
-	%door mappings
-	sluiceDoor(Sluice1, Outside) = D1;
-	sluiceDoor(Sluice1, Inside) = D2;
-	sluiceDoor(Sluice2, Outside) = D3;
-	sluiceDoor(Sluice2, Inside) = D4;
+  %Initial(p)=Empty; 
 
-	%rack mappings
-	rackToPosition(Input) = IR;
-	rackToPosition(Output) = OR;
-	rackToPosition(WaitingRackInput) = WR_I;
-	rackToPosition(WaitingRackOutput) = WR_O;
+  SluiceMap(S1,Outside)=S1_Out;
+  SluiceMap(S1,Inside)=S1_In;
+  SluiceMap(S2,Outside)=S2_Out;
+  SluiceMap(S2,Inside)=S2_In;
 
-proc
-	
-	
+  %Every Move of R1 and R2 from Src to Des results in Des_State = Src_State and Src_State=Empty
+  %Update(ps,src,des) = ps[des->ps(src)][src->Empty];
+  
 
-	outsideRobot = 
-		(moveToSluice(R1, IR, Unprojected)).outsideRobot; %+ moveToRack(R1, Output, S2) + moveToRack(R1, Output, S1)).outsideRobot;
-	
-	%insideRobot = 
-	%	(moveToRack(R2, WaitingRackInput, Unprojected) + moveToSluice(R2, )).insideRobot
+act  
+  closeDoor, openDoor,isClose,isOpen,sigOpen,sigClose,Open,Close: Sluice # DoorType;
+  pump: Sluice; %pumping the air out of a sluice
+  Move,MoveOK,MoveReq : Position # Position;
+  
+	waferStatusUpdateSent, waferStatusUpdateReceived, waferStatusUpdate: Position # Wafer;
+	waferBroadcastSent, waferBroadcastReceived, waferBroadcast: Position # Wafer;
+  
+  %doorStuck : Position;
 
-	moveToSluice(r: Robot, p: Position, w: Wafer) =
-		sum s: Sluice.(moveRequestToSluice_Sent(r,s).(moveResponseFromSluice_Received(s, true).move(r,sluiceToPosition(s),p).moveSuccess_Sent(s) 
-													+ moveResponseFromSluice_Received(s, false).moveFailed_Sent(r)));
-	
+proc 
 
-	sluiceOperation(s: Sluice, outsideOpen: Bool, insideOpen: Bool, outsideStuck: Bool, insideStuck: Bool) =
-			(!insideOpen && !outsideOpen) -> 
-				sum r: Robot.moveRequestToSluice_Received(r,s). 
-					(((r == R1) -> 
-						openDoor(s, Outside).pump(s).moveResponseFromSluice_Sent(s, true).moveSuccess_Received(s).sluiceOperation(s, true, false, false, false)) + 
-					((r == R2) -> 
-						openDoor(s, Inside).pump(s).moveResponseFromSluice_Sent(s, true).moveSuccess_Received(s).sluiceOperation(s, false, true, false, false)));
-
-	%moveToRack(r: Robot, ra: Rack, p: Position) = 
-	%	moveRequestToRack_Sent(r, ra).(moveResponseFromRack_Received(ra, true).move(r, rackToPosition(ra), p) + moveResponseFromRack_Received(ra, false));
-	
-
-	%rackOperation(ra: Rack) = 
-%		sum r: Robot.moveRequestToRack_Received(r, ra).(
-	%	(ra == Input) -> 
-	%		(moveResponseFromRack_Sent(ra, true)) + 
-	%	(ra == Output) -> 
-		%	(moveResponseFromRack_Sent(ra, true)) +
-		%(ra == WaitingRackInput) ->
-		%	(moveResponseFromRack_Sent(ra, false)) +
-		%(ra == WaitingRackOutput) -> 
-		%	(moveResponseFromRack_Sent(ra, false)));
-		
-	%waferOperation(p: Position, w: Wafer) =
-	%	sum r: Robot.waferSignal_Received(r, p, w).
-	%	(((r == R1 && (p == S1 || p == S2) && w == Unprojected) ->
-	%		placeWafer_Sent(r, p, w)) +
-	%	((r == R1 && (p == S1 || p == S2) && w == Projected) ->
-	%		pickUpWafer_Sent(r, p, w)) +
-%	
-	%	((r == R2 && (p == S1 || p == S2) && w == Unprojected) ->
-	%		pickUpWafer_Sent(r, p, w)) +
-	%	((r == R1 && (p == S1 || p == S2) && w == Projected) ->
-		%	placeWafer_Sent(r, p, w)));
-
-	%waferStatus();
+  % S1 and S2 opening sequence : Check if inside door is closed, if yes then open the outside door and send sigOpen signal
+                  %Check if outside door is closed, if yes then pump air out, and open the inside door and send sigOpen signal  
+   
+   SluiceOpen(s:Sluice,d:DoorType) = (isClose(s,Inside).sigOpen(s,Outside).(SluiceOpen(s,Outside)) +                               
+                    isClose(s,Outside).sigOpen(s,Inside).(pump(s).SluiceOpen(s,Inside)));
+  % S1 and S2 Closing sequence : Check if door is open, if yes then close the door and send sigClose signal     
+   SluiceClose(s:Sluice,d:DoorType) = (isOpen(s,Outside).sigClose(s,Outside).SluiceClose(s,Outside))+(isOpen(s,Inside).sigClose(s,Inside).SluiceClose(s,Inside));
 
 
-	%we close the inside door, open the outside door, and after that, we can follow up with the inside door opening sequence
-    %SluiceOutOpen(s:Sluice, outsideOpen: Bool, insideOpen: Bool, r: Robot) = 
-	%sum r: Robot, sl: Sluice.(moveRequestToSluice_   
-	%moveRequestToSluice_Received(r, s, sluiceDoor(s, Outside)).openDoor(s, Outside).moveResponseFromSluice_Sent(r, s, sluiceDoor(s, Outside), true);
-	%we close the outside door, pump the air out, open the inside door, and after that, we can follow up with the outside door opening sequence
-	%SluiceInOpen(s:Sluice) = closeDoor(s, Outside).pump(s).openDoor(s, Inside).SluiceOutOpen(s);
-	%RobotOut = SluiceOutOpen(Sluice1).moveRobot(IR,S1).placeWafer(Sluice1) + SluiceOutOpen(Sluice2).moveRobot(IR,S2).placeWafer(Sluice2) ;
-	%RobotIn = 
+  % R1 can pickup wafers only from IR,S1_Out or S2_Out and place wafers only S1_Out,S2_Out or OR
+  % R2 can pickup wafers only from S1_In,S2_In,WR_I,WR_O and place wafers only S1_In,S2_In,WR_I
+   %Robot1  =  sum s:Sluice.(((waferBroadcastReceived(SluiceMap(s, Inside), projected) + waferBroadcastReceived(SluiceMap(s, Outside), projected).(MoveReq(SluiceMap(s,Outside),OR) + 
+	%						waferBroadcastReceived(IR, unprojected).MoveReq(IR,SluiceMap(s,Outside))).Robot1;
+	Robot1 = sum s:Sluice.((waferBroadcastReceived(SluiceMap(s, Inside), Projected) + waferBroadcastReceived(SluiceMap(s, Outside), Projected)).MoveReq(SluiceMap(s,Outside),OR) + 
+							waferBroadcastReceived(IR, Unprojected).MoveReq(IR,SluiceMap(s,Outside))).Robot1;
+   	Robot2  = sum s:Sluice.(MoveReq(SluiceMap(s,Inside),WR_I)+ MoveReq(WR_O,SluiceMap(s,Inside))).Robot2;
 
-init
-  allow(
-    { closeDoor, openDoor, pump, moveRequestToSluice, moveResponseFromSluice, moveRequestToRack, moveResponseFromRack, move, placeWafer, pickUpWafer, waferPlaced, waferSignal, moveSuccess, moveFailed},
-		comm(
-			{moveRequestToSluice_Sent | moveRequestToSluice_Received -> moveRequestToSluice,
-			moveResponseFromSluice_Sent | moveResponseFromSluice_Received -> moveResponseFromSluice,
-			moveRequestToRack_Sent | moveRequestToRack_Received  -> moveRequestToRack,
-			moveResponseFromRack_Sent | moveResponseFromRack_Received -> moveResponseFromRack,
-			placeWafer_Sent | placeWafer_Received -> placeWafer,
-			pickUpWafer_Sent | pickUpWafer_Received -> pickUpWafer,
-			waferSignal_Sent | waferSignal_Received -> waferSignal,
-			moveFailed_Sent | moveFailed_Received -> moveFailed,
-			moveSuccess_Sent | moveSuccess_Received -> moveSuccess},
-			
-			outsideRobot || sluiceOperation(Sluice1, false, false, false, false) || sluiceOperation(Sluice2, false, false, false, false) %|| %rackOperation(Output)  %|| waferOperation(R1, S1, Unprojected) || waferOperation(R1, S2, Unprojected)
-    	
-       	%SluiceOutOpen(Sluice1) || SluiceInOpen(Sluice2)||RobotOut %just an example start: we can either open the outside of sluice1 or open the inside of sluice 2, these can go paralell
-		%SluiceOutOpen(Sluice1, false, false, R1)
-   )) ;
-
-%comment
+	WaferPositionTracker(start: Bool, IRw: Wafer, ORw: Wafer, S1w: Wafer, S2w: Wafer, WRIw: Wafer, WROw: Wafer, IPSw: Wafer) = 
+		(start) -> 
+			waferBroadcastSent(IR, Unprojected).WaferPositionTracker(start = false, IRw = Unprojected)
+			<>
+		sum p: Position, w: Wafer.waferStatusUpdateReceived(p,w).(
+			waferBroadcastSent(p,w).(
+				(p == IR) ->
+					WaferPositionTracker(IRw = w)
+				+
+				(p == OR) ->
+					WaferPositionTracker(ORw = w)
+				+
+				(p == S1_In || p == S1_Out) ->
+					WaferPositionTracker(S1w = w)
+				+
+				(p == S2_In || p == S2_Out) ->
+					WaferPositionTracker(S2w = w)
+				+
+				(p == WR_I) ->
+					WaferPositionTracker(WRIw = w)
+				+
+				(p == WR_O) ->
+					WaferPositionTracker(WROw = w)
+				+
+				(p == IPS) ->
+					WaferPositionTracker(IPSw = w)
+			)
+		); 
+  
+%WaferState(ps:PositionStatus) = sum src,des:Position.((src!=des)&&(des!=IR)&&(src!=OR))->WaferState(Update(ps,src,des));
+  %Controller 
+  %Controller = sum src,des:Position.((src!=des)&&sigOpen())->(MoveOK(src,des)).Controller;
+  
+ 
+init 
+  
+  allow({Move,closeDoor,pump,openDoor,Open,Close, waferBroadcast, waferStatusUpdate},
+    comm({ 
+   	MoveReq|MoveOK -> Move,
+   	isOpen|sigOpen -> Open,
+   	sigClose|isClose -> Close,
+	waferStatusUpdateSent | waferStatusUpdateReceived -> waferStatusUpdate,
+	waferBroadcastSent | waferBroadcastReceived -> waferBroadcast
+  
+      },
+       Robot1 || WaferPositionTracker(true, Empty, Empty, Empty, Empty, Empty, Empty, Empty)%||%Controller %sample simulation
+    	)
+    )
+    ;

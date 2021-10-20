@@ -10,7 +10,7 @@ sort
  % Status = struct Empty?isEmpty|Full|UnProjected|Projected?isProjected;
   %PositionStatus = Position -> Status;
   %Component = struct R1|R2;
-	Wafer = struct Empty | Projected | Unprojected;
+  Wafer = struct Empty | Projected | Unprojected;
 
 map 
   %GreenSig : Position -> Status;
@@ -114,8 +114,7 @@ init
 	waferBroadcastSent | waferBroadcastReceived -> waferBroadcast
   
       },
-	SluiceOpen(S1,Outside)||SluiceClose(S1,Outside)
-       %Robot1 ||SluiceControl(S1,Outside)|| WaferPositionTracker(true, Empty, Empty, Empty, Empty, Empty, Empty, Empty)%||%Controller %sample simulation
+       Robot1 ||SluiceControl(S1,Outside)|| WaferPositionTracker(true, Empty, Empty, Empty, Empty, Empty, Empty, Empty)%||%Controller %sample simulation
     	)
     )
 )

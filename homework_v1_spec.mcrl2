@@ -79,7 +79,7 @@ proc
 	%						waferBroadcastReceived(IR, unprojected).MoveReq(IR,SluiceMap(s,Outside))).Robot1;
 	Robot1 = sum s:Sluice.((waferBroadcastReceived(SluiceMap(s, Inside), Projected) + waferBroadcastReceived(SluiceMap(s, Outside), Projected)).MoveReq(SluiceMap(s,Outside),OR) + 
 							waferBroadcastReceived(IR, Unprojected).MoveReq(IR,SluiceMap(s,Outside))).Robot1;
-   	Robot2  = sum s:Sluice.(MoveReq(SluiceMap(s,Inside),WR_I)+ MoveReq(WR_O,SluiceMap(s,Inside))).Robot2;
+   	Robot2  = sum s:Sluice.((waferBroadcastReceived(SluiceMap(s, Outside), Unprojected).MoveReq(SluiceMap(s,Inside),WR_I)+ (waferBroadcastReceived(WR_O, 													Projected)).MoveReq(WR_O,SluiceMap(s,Inside)))).Robot2;
 
 
 	WaferPositionTracker(start: Bool, IRw: Wafer, ORw: Wafer, S1w: Wafer, S2w: Wafer, WRIw: Wafer, WROw: Wafer, IPSw: Wafer) = 

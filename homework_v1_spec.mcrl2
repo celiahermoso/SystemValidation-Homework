@@ -121,7 +121,7 @@ proc
  
 init 
   
-  allow({Move,SluiceOpen,SluiceClose,checkOpen,signalOpen,commandClose,signalClosed,openDoor,closeDoor, waferBroadcast, waferStatusUpdate},
+  allow({Move,SluiceOpen,SluiceClose,checkOpen,signalOpen,openDoor,closeDoor, waferBroadcast, waferStatusUpdate},
     comm({ 
 	
    	MoveReq|MoveOK -> Move,

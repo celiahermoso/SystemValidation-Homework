@@ -45,12 +45,12 @@ eqn
 
 
 act  
-  closeDoor, openDoor,isClose,isOpen,signalOpen,signalClose,signalDoorStuck,SluiceOpen,SluiceClose,MoveThrough: Sluice # DoorType;
+  checkOpen,commandClose,signalOpen,signalClosed,openDoor,closeDoor,signalDoorStuck,SluiceOpen,SluiceClose: Sluice # DoorType;
   pump: Sluice; %pumping the air out of a sluice
   Move,MoveOK,MoveReq: Position # Position;
   
-	waferStatusUpdateSent, waferStatusUpdateReceived, waferStatusUpdate: Position # Wafer;
-	waferBroadcastSent, waferBroadcastReceived, waferBroadcast: Position # Wafer;
+  waferStatusUpdateSent, waferStatusUpdateReceived, waferStatusUpdate: Position # Wafer;
+  waferBroadcastSent, waferBroadcastReceived, waferBroadcast: Position # Wafer;
   
   %doorStuck : Position;
 
@@ -62,11 +62,11 @@ proc
 %An inside door can be opened only if it was previously closed and the outside door is currently not open.There is a pumping of air in sluice before inside door opening.
 %A door can be closed if it was previously opened and it is not stuck.
 								
-	Sluice(s:Sluice, outsideDoor:Bool, insideDoor:Bool, outsideDoorStuck:Bool, insideDoorStuck:Bool) = ((!outsideDoorStuck&&!insideDoorStuck)->((!outsideDoor && !insideDoor) -> (signalOpen(s,Outside) . SluiceOpen(s,Outside) . 	Sluice(outsideDoor=true)) + (pump(s).signalOpen(s,Inside) . SluiceOpen(s,Inside) . Sluice(insideDoor=true)))
+	Sluice(s:Sluice, outsideDoor:Bool, insideDoor:Bool, outsideDoorStuck:Bool, insideDoorStuck:Bool) = ((!outsideDoorStuck&&!insideDoorStuck)->((!outsideDoor && !insideDoor) -> (signalOpen(s,Outside) . SluiceOpen(s,Outside) . Sluice(outsideDoor=true)) + (pump(s).signalOpen(s,Inside) . SluiceOpen(s,Inside) . Sluice(insideDoor=true)))
 +
-((outsideDoor && !insideDoor) -> (signalClose(s,Outside) . SluiceClose(s,Outside). Sluice(outsideDoor=false)))
+((outsideDoor && !insideDoor) -> (signalClosed(s,Outside) . SluiceClose(s,Outside). Sluice(outsideDoor=false)))
 +
-((!outsideDoor && insideDoor) -> (signalClose(s,Inside) . SluiceClose(s,Inside) . Sluice(insideDoor=false))))  
+((!outsideDoor && insideDoor) -> (signalClosed(s,Inside) . SluiceClose(s,Inside) . Sluice(insideDoor=false))))  
 +
 (signalDoorStuck(s,Outside) . Sluice(outsideDoorStuck=true))
 +
@@ -77,9 +77,10 @@ proc
   % R2 can pickup wafers only from S1_In,S2_In,WR_I,WR_O and place wafers only S1_In,S2_In,WR_I
    %Robot1  =  sum s:Sluice.(((waferBroadcastReceived(SluiceMap(s, Inside), projected) + waferBroadcastReceived(SluiceMap(s, Outside), projected).(MoveReq(SluiceMap(s,Outside),OR) + 
 	%						waferBroadcastReceived(IR, unprojected).MoveReq(IR,SluiceMap(s,Outside))).Robot1;
-	Robot1 = sum s:Sluice.((waferBroadcastReceived(SluiceMap(s, Inside), Projected) + waferBroadcastReceived(SluiceMap(s, Outside), Projected)).MoveReq(SluiceMap(s,Outside),OR) + 
-							waferBroadcastReceived(IR, Unprojected).MoveReq(IR,SluiceMap(s,Outside))).Robot1;
-   	Robot2  = sum s:Sluice.((waferBroadcastReceived(SluiceMap(s, Outside), Unprojected).MoveReq(SluiceMap(s,Inside),WR_I)+ (waferBroadcastReceived(WR_O, 													Projected)).MoveReq(WR_O,SluiceMap(s,Inside)))).Robot2;
+	Robot1 = sum s:Sluice.((waferBroadcastReceived(SluiceMap(s, Inside), Projected) + waferBroadcastReceived(SluiceMap(s, Outside), Projected)).checkOpen(s,Outside).MoveReq(SluiceMap(s,Outside),OR).commandClose(s,Outside) + 
+							waferBroadcastReceived(IR, Unprojected).checkOpen(s,Outside).MoveReq(IR,SluiceMap(s,Outside))).Robot1;
+
+   	Robot2  = sum s:Sluice.((waferBroadcastReceived(SluiceMap(s, Outside), Unprojected).MoveReq(SluiceMap(s,Inside),WR_I).commandClose(s,Outside)+ (waferBroadcastReceived(WR_O,Projected)).MoveReq(WR_O,SluiceMap(s,Inside)).commandClose(s,Outside))).Robot2;
 
 
 	WaferPositionTracker(start: Bool, IRw: Wafer, ORw: Wafer, S1w: Wafer, S2w: Wafer, WRIw: Wafer, WROw: Wafer, IPSw: Wafer) = 
@@ -115,22 +116,22 @@ proc
   %Controller 
 
 
-  %Controller = sum src,des:Position.((src!=des)&&sigOpen())->(MoveOK(src,des)).Controller;
+ Controller = sum src,des:Position.((src!=des))->(MoveOK(src,des)).(waferStatusUpdateSent(des,Unprojected)+waferStatusUpdateSent(des,Projected)).Controller;
   
  
 init 
   
-  allow({Move,MoveThrough,closeDoor,SluiceOpen,SluiceClose,signalOpen,signalClose,signalDoorStuck,pump, waferBroadcast, waferStatusUpdate},
+  allow({Move,SluiceOpen,SluiceClose,checkOpen,signalOpen,openDoor,closeDoor, waferBroadcast, waferStatusUpdate},
     comm({ 
 	
    	MoveReq|MoveOK -> Move,
-  
+  	signalOpen|checkOpen->openDoor,
+	commandClose|signalClosed->closeDoor,
 	waferStatusUpdateSent | waferStatusUpdateReceived -> waferStatusUpdate,
 	waferBroadcastSent | waferBroadcastReceived -> waferBroadcast
   
       },
-       Robot1 ||Sluice(S1,false,false,false,false)
-%|| WaferPositionTracker(true, Empty, Empty, Empty, Empty, Empty, Empty, Empty)%||%Controller %sample simulation
+       Robot1 ||Sluice(S1,false,false,false,false)||Controller|| WaferPositionTracker(true, Empty, Empty, Empty, Empty, Empty, Empty, Empty)%||%Controller %sample simulation
     	)
     
 )

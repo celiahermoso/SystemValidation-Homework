@@ -45,12 +45,21 @@ eqn
 
 
 act  
-  checkOpen,commandClose,signalOpen,signalClosed,openDoor,closeDoor,signalDoorStuck,SluiceOpen,SluiceClose: Sluice # DoorType;
+  	checkOpenReceived, checkOpenSent, checkOpen: Sluice # DoorType; %This is a signal that the controller sends to sluices to check if they can be opened or not.
+	sluiceSignalSent, sluiceSignalReceived, sluiceSignal: Bool # Sluice # DoorType; %This is a signal that the sluice sends back to the controller related to the opening request. True means yes, it can be opened, false means it cannot be opened.
+	commandClose,signalOpen,signalClosed,openDoor,closeDoor,signalDoorStuck,SluiceOpen,SluiceClose: Sluice # DoorType;
   pump: Sluice; %pumping the air out of a sluice
-  Move,MoveOK,MoveReq: Position # Position;
+  Move,MoveOK,MoveReq: Position # Position; %MoveReq is used with MoveReqSent and MoveReqReceived
+
+asd; % just a very simple test action, I used it after communications, can be useful while developing
+
+	MoveReqSent, MoveReqReceived: Position # Position; % Request to move sent by the robots to the controller.
+	MoveResponseSent, MoveResponseReceived, MoveResponse: Bool # Position # Position; % Response to the request, true means approved, false means denied.
+	MoveDoneSent, MoveDoneReceived, MoveDone: Bool # Position # Position; %Signal from the robots to the controller that they are done moving.
   
-  waferStatusUpdateSent, waferStatusUpdateReceived, waferStatusUpdate: Position # Wafer;
-  waferBroadcastSent, waferBroadcastReceived, waferBroadcast: Position # Wafer;
+  waferStatusUpdateSent, waferStatusUpdateReceived, waferStatusUpdate: Position # Wafer; %Sending an update to the wafer tracker about the changes in the wafer positions.
+  waferBroadcastSent, waferBroadcastReceived, waferBroadcast: Position # Wafer; %Sending an update to the robots and the controller about the changes in the wafer positions.
+
   
   %doorStuck : Position;
 
@@ -62,7 +71,11 @@ proc
 %An inside door can be opened only if it was previously closed and the outside door is currently not open.There is a pumping of air in sluice before inside door opening.
 %A door can be closed if it was previously opened and it is not stuck.
 								
-	Sluice(s:Sluice, outsideDoor:Bool, insideDoor:Bool, outsideDoorStuck:Bool, insideDoorStuck:Bool) = ((!outsideDoorStuck&&!insideDoorStuck)->((!outsideDoor && !insideDoor) -> (signalOpen(s,Outside) . SluiceOpen(s,Outside) . Sluice(outsideDoor=true)) + (pump(s).signalOpen(s,Inside) . SluiceOpen(s,Inside) . Sluice(insideDoor=true)))
+%CHANGES: I changed the signal sending: sluices first wait for an opening request from the Controller. After that, they open, and send back a message about the result of the opening process. I haven't touched the closing.
+
+
+	Sluice(s:Sluice, outsideDoor:Bool, insideDoor:Bool, outsideDoorStuck:Bool, insideDoorStuck:Bool) = ((!outsideDoorStuck&&!insideDoorStuck)->(
+		(!outsideDoor && !insideDoor) -> (checkOpenReceived(s,Outside) . SluiceOpen(s,Outside).sluiceSignalSent(true, s, Outside) . Sluice(outsideDoor=true)) + (pump(s).checkOpenReceived(s,Inside) . SluiceOpen(s,Inside).sluiceSignalSent(true, s, Inside) . Sluice(insideDoor=true)))
 +
 ((outsideDoor && !insideDoor) -> (signalClosed(s,Outside) . SluiceClose(s,Outside). Sluice(outsideDoor=false)))
 +
@@ -77,61 +90,116 @@ proc
   % R2 can pickup wafers only from S1_In,S2_In,WR_I,WR_O and place wafers only S1_In,S2_In,WR_I
    %Robot1  =  sum s:Sluice.(((waferBroadcastReceived(SluiceMap(s, Inside), projected) + waferBroadcastReceived(SluiceMap(s, Outside), projected).(MoveReq(SluiceMap(s,Outside),OR) + 
 	%						waferBroadcastReceived(IR, unprojected).MoveReq(IR,SluiceMap(s,Outside))).Robot1;
-	Robot1 = sum s:Sluice.((waferBroadcastReceived(SluiceMap(s, Inside), Projected) + waferBroadcastReceived(SluiceMap(s, Outside), Projected)).checkOpen(s,Outside).MoveReq(SluiceMap(s,Outside),OR).commandClose(s,Outside) + 
-							waferBroadcastReceived(IR, Unprojected).checkOpen(s,Outside).MoveReq(IR,SluiceMap(s,Outside))).Robot1;
-
-   	Robot2  = sum s:Sluice.((waferBroadcastReceived(SluiceMap(s, Outside), Unprojected).MoveReq(SluiceMap(s,Inside),WR_I).commandClose(s,Outside)+ (waferBroadcastReceived(WR_O,Projected)).MoveReq(WR_O,SluiceMap(s,Inside)).commandClose(s,Outside))).Robot2;
 
 
+	Robot1 = sum s:Sluice.(waferBroadcastReceived(SluiceMap(s, Inside), Projected).MoveReqSent(SluiceMap(s,Outside),OR).
+								(MoveResponseReceived(true, SluiceMap(s,Outside), OR).waferStatusUpdateSent(SluiceMap(s,Outside), Empty).waferStatusUpdateSent(OR, Projected).
+									commandClose(s,Outside).MoveDoneSent(true, SluiceMap(s,Outside), OR) + 
+								MoveResponseReceived(false, SluiceMap(s,Outside), OR).MoveDoneSent(false, SluiceMap(s,Outside), OR)) 
+
+							+ 
+	
+							waferBroadcastReceived(IR, Unprojected).MoveReqSent(IR,SluiceMap(s,Outside)).(MoveResponseReceived(true,IR,SluiceMap(s,Outside)).waferStatusUpdateSent(SluiceMap(s,Outside), 	Unprojected).MoveDoneSent(true,IR,SluiceMap(s,Outside)) 
+							+ 
+							MoveResponseReceived(false, IR, SluiceMap(s,Outside)).MoveDoneSent(false, IR, SluiceMap(s,Outside)))).Robot1;
+
+   	Robot2  = sum s:Sluice.(waferBroadcastReceived(SluiceMap(s, Outside), Unprojected).MoveReqSent(SluiceMap(s,Inside),WR_I).commandClose(s,Outside)+ (waferBroadcastReceived(WR_O,Projected)).MoveReq(WR_O,SluiceMap(s,Inside)).commandClose(s,Outside)).Robot2;
+
+	%Robot2_test = waferBroadcastReceived(S1_Out, Unprojected).asd;
+
+	
+%For some godforsaken reason, this only works if I put the waferBroadcastSent inside the conditions.
 	WaferPositionTracker(start: Bool, IRw: Wafer, ORw: Wafer, S1w: Wafer, S2w: Wafer, WRIw: Wafer, WROw: Wafer, IPSw: Wafer) = 
-		(start) -> 
-			waferBroadcastSent(IR, Unprojected).WaferPositionTracker(start = false, IRw = Unprojected)
+		((start) -> 
+			(waferBroadcastSent(IR, Unprojected).WaferPositionTracker(start = false, IRw = Unprojected))
 			<>
-		sum p: Position, w: Wafer.waferStatusUpdateReceived(p,w).(
-			waferBroadcastSent(p,w).(
-				(p == IR) ->
-					WaferPositionTracker(IRw = w)
+		(sum p: Position, w: Wafer.waferStatusUpdateReceived(p,w).(
+			
+				((p == IR) ->
+					waferBroadcastSent(p,w).WaferPositionTracker(IRw = w))
 				+
-				(p == OR) ->
-					WaferPositionTracker(ORw = w)
+				((p == OR) ->
+					waferBroadcastSent(p,w).WaferPositionTracker(ORw = w))
 				+
-				(p == S1_In || p == S1_Out) ->
-					WaferPositionTracker(S1w = w)
+				((p == S1_In || p == S1_Out) ->
+					waferBroadcastSent(p,w).WaferPositionTracker(S1w = w))
 				+
-				(p == S2_In || p == S2_Out) ->
-					WaferPositionTracker(S2w = w)
+				((p == S2_In || p == S2_Out) ->
+					waferBroadcastSent(p,w).WaferPositionTracker(S2w = w))
 				+
-				(p == WR_I) ->
-					WaferPositionTracker(WRIw = w)
+				((p == WR_I) ->
+					waferBroadcastSent(p,w).WaferPositionTracker(WRIw = w))
 				+
-				(p == WR_O) ->
-					WaferPositionTracker(WROw = w)
+				((p == WR_O) ->
+					waferBroadcastSent(p,w).WaferPositionTracker(WROw = w))
 				+
-				(p == IPS) ->
-					WaferPositionTracker(IPSw = w)
-			)
-		); 
+				((p == IPS) ->
+					waferBroadcastSent(p,w).WaferPositionTracker(IPSw = w))
+			
+		))); 
+
+		%WaferBroadcaster(p: Position, w: Wafer) = 
   
 %WaferState(ps:PositionStatus) = sum src,des:Position.((src!=des)&&(des!=IR)&&(src!=OR))->WaferState(Update(ps,src,des));
   %Controller 
 
 
- Controller = sum src,des:Position.((src!=des))->(MoveOK(src,des)).(waferStatusUpdateSent(des,Unprojected)+waferStatusUpdateSent(des,Projected)).Controller;
+%The controller ask sluices and rack positions whether robots can move ther or not. It sends a checkOpen to a sluice, which answers whether it can be opened or not. It sends back a sluiceSignal with the boolean being the answer. After this, the controller responds back to the robots, and waits for their acknowledgement. For the racks, it checks the wafer broadcasts to determine whether the destination sluice is open or not: THIS MIGHT NOT WORK, I HAVEN'T TESTED IT.
+	Controller = sum src, des: Position.MoveReqReceived(src, des).(
+		(src!=des) ->
+			(((des == S1_In) ->
+				checkOpenSent(S1,Inside).(sluiceSignalReceived(false, S1, Inside).MoveResponseSent(false, src, des).MoveDoneReceived(false, src, des) + 
+											sluiceSignalReceived(true, S1, Inside).MoveResponseSent(true, src, des).MoveDoneReceived(true, src, des)).Controller) +
+			((des == S1_Out) -> 
+				checkOpenSent(S1,Outside).(sluiceSignalReceived(false, S1, Outside).MoveResponseSent(false, src, des).MoveDoneReceived(false, src, des) + 
+											sluiceSignalReceived(true, S1, Outside).MoveResponseSent(true, src, des).MoveDoneReceived(true, src, des)).Controller) +
+			((des == S2_In) ->
+				checkOpenSent(S2,Inside).(sluiceSignalReceived(false, S2, Inside).MoveResponseSent(false, src, des).MoveDoneReceived(false, src, des) + 
+											sluiceSignalReceived(true, S2, Inside).MoveResponseSent(true, src, des).MoveDoneReceived(true, src, des)).Controller) +
+			((des == S2_Out) ->
+				checkOpenSent(S2,Outside).(sluiceSignalReceived(false, S2, Outside).MoveResponseSent(false, src, des).MoveDoneReceived(false, src, des) + 
+											sluiceSignalReceived(true, S2, Outside).MoveResponseSent(true, src, des).MoveDoneReceived(true, src, des)).Controller) +
+			((des == WR_I || des == WR_O || des == IPS) -> 
+				sum w: Wafer.waferBroadcastReceived(des, w).(w == Empty) -> 
+						((src == S1_In) ->
+							checkOpenSent(S1,Inside).(sluiceSignalReceived(false, S1, Inside).MoveResponseSent(false, src, des).MoveDoneReceived(false, src, des) + 
+														sluiceSignalReceived(true, S1, Inside).MoveResponseSent(true, src, des).MoveDoneReceived(true, src, des)).Controller+
+						(src == S1_Out) -> 
+							checkOpenSent(S1,Outside).(sluiceSignalReceived(false, S1, Outside).MoveResponseSent(false, src, des).MoveDoneReceived(false, src, des) + 
+														sluiceSignalReceived(true, S1, Outside).MoveResponseSent(true, src,des).MoveDoneReceived(true, src, des)).Controller +
+						(src == S2_In) ->							
+							checkOpenSent(S2,Inside).(sluiceSignalReceived(false, S2, Inside).MoveResponseSent(false, src, des).MoveDoneReceived(false, src, des) + 
+														sluiceSignalReceived(true, S2, Inside).MoveResponseSent(true, src, des).MoveDoneReceived(true, src, des)).Controller +
+						(src == S2_Out) ->
+							checkOpenSent(S2,Outside).(sluiceSignalReceived(false, S2, Outside).MoveResponseSent(false, src, des).MoveDoneReceived(false, src, des) + 
+														sluiceSignalReceived(true, S2, Outside).MoveResponseSent(true, src, des).MoveDoneReceived(true, src, des)).Controller
+						)<>
+						MoveResponseSent(false, src, des).MoveDoneReceived(false, src, des)).Controller
+			)
+		<>
+			MoveResponseSent(false, src, des).MoveDoneReceived(false, src, des).Controller
+
+	);
   
  
 init 
   
-  allow({Move,SluiceOpen,SluiceClose,checkOpen,signalOpen,openDoor,closeDoor, waferBroadcast, waferStatusUpdate},
+  allow({Move,SluiceOpen,SluiceClose,checkOpen,signalOpen,openDoor,closeDoor, waferBroadcast, waferStatusUpdate, MoveResponse, MoveDone, MoveReq, sluiceSignal,asd},
     comm({ 
 	
-   	MoveReq|MoveOK -> Move,
-  	signalOpen|checkOpen->openDoor,
+   %	MoveReq|MoveOK -> Move,
+  	%signalOpen|checkOpen->openDoor,
+	MoveReqSent | MoveReqReceived -> MoveReq,
+	MoveResponseSent | MoveResponseReceived -> MoveResponse,
+	MoveDoneSent | MoveDoneReceived -> MoveDone,
+	sluiceSignalSent | sluiceSignalReceived -> sluiceSignal,
+	checkOpenSent | checkOpenReceived -> checkOpen,
 	commandClose|signalClosed->closeDoor,
 	waferStatusUpdateSent | waferStatusUpdateReceived -> waferStatusUpdate,
 	waferBroadcastSent | waferBroadcastReceived -> waferBroadcast
   
       },
-       Robot1 ||Sluice(S1,false,false,false,false)||Controller|| WaferPositionTracker(true, Empty, Empty, Empty, Empty, Empty, Empty, Empty)%||%Controller %sample simulation
+       Robot1 ||  Sluice(S1,false,false,false,false)||Controller|| WaferPositionTracker(true, Empty, Empty, Empty, Empty, Empty, Empty, Empty)%||%Controller %sample simulation
     	)
     
 )

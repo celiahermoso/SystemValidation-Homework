@@ -67,17 +67,16 @@ Sluice(s:Sluice, outsideDoor:Bool, insideDoor:Bool, outsideDoorStuck:Bool, insid
     ((!outsideDoor && insideDoor) -> 
 		checkCloseReceived(SluiceMap(s,Inside)).SluiceClose(s,Inside).sluiceClosedSent(true,SluiceMap(s,Inside)).Sluice(insideDoor=false))  
 +
-    (signalDoorStuck(s,Outside) . Sluice(outsideDoorStuck=true))
+    (signalDoorStuck(s,Outside).(sluiceOpenSent(false, SluiceMap(s,Outside))+sluiceClosedSent(false, SluiceMap(s,Outside))). Sluice(outsideDoorStuck=true))
 +
-    (signalDoorStuck(s,Inside) . Sluice(insideDoorStuck=true)));				
+    (signalDoorStuck(s,Inside) .(sluiceOpenSent(false, SluiceMap(s,Inside))+ sluiceClosedSent(false, SluiceMap(s,Inside))). Sluice(insideDoorStuck=true)));				
 
 % R1 can pickup wafers only from positions IR,S1_Out or S2_Out and place wafers only at positions S1_Out,S2_Out or OR
 % R2 can pickup wafers only from positions S1_In,S2_In,WR_I,WR_O and place wafers only at positions S1_In,S2_In,WR_I
 % The movemements can happen only when there is a wafer of the appropriate status at the current position and only if the controller has given the permission to move
    
 Robot1 = (sum s:Sluice.((waferBroadcastReceived(SluiceMap(s,Inside),Projected).sluiceClosedReceived(true,SluiceMap(s,Inside)).MoveReqSent(SluiceMap(s,Outside),OR).
-						   	   ((MoveResponseReceived(true,SluiceMap(s,Outside),OR).waferStatusUpdateSent(SluiceMap(s,Outside), Empty).waferStatusUpdateSent(OR,Projected). 
-								 MoveDoneSent(true,SluiceMap(s,Outside),OR).checkCloseSent(SluiceMap(s,Outside)))
+						   	   ((MoveResponseReceived(true,SluiceMap(s,Outside),OR).waferStatusUpdateSent(SluiceMap(s,Outside), Empty).waferStatusUpdateSent(OR,Projected).MoveDoneSent(true,SluiceMap(s,Outside),OR).checkCloseSent(SluiceMap(s,Outside)))
 								 + 	
 						   	    (MoveResponseReceived(false, SluiceMap(s,Outside), OR).MoveDoneSent(false, SluiceMap(s,Outside),OR)))) 
 						    +

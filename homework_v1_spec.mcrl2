@@ -43,8 +43,10 @@ act
 	controllerWaferResponseSent, controllerWaferResponseReceived, controllerWaferResponse: Position # Wafer;
 	% Actions at the Image Projection System
 	beginProjection,endProjection,projectionUpdateSent,projectionUpdateReceived,projectionUpdate,asd;
-
+	
 	registerEmpty, emptyOutputRack;
+
+	resendBroadcastSent, resendBroadcastReceived, resendBroadcast: Position # Wafer;
 
 proc 
 
@@ -79,33 +81,38 @@ Robot1 = (sum s:Sluice.((waferBroadcastReceived(SluiceMap(s,Inside),Projected).s
 						   	   ((MoveResponseReceived(true,SluiceMap(s,Outside),OR).waferStatusUpdateSent(SluiceMap(s,Outside), Empty).waferStatusUpdateSent(OR,Projected). 
 								 MoveDoneSent(true,SluiceMap(s,Outside),OR).checkCloseSent(SluiceMap(s,Outside)))
 								 + 	
-						   	    (MoveResponseReceived(false, SluiceMap(s,Outside), OR).MoveDoneSent(false, SluiceMap(s,Outside),OR)))) 
+						   	    (MoveResponseReceived(false, SluiceMap(s,Outside), OR).MoveDoneSent(false, SluiceMap(s,Outside),OR).resendBroadcastSent(SluiceMap(s,Inside),Projected)))) 
 						    +
-			            (waferBroadcastReceived(IR,Unprojected).(sum s:Sluice.MoveReqSent(IR,SluiceMap(s,Outside)).
-                           	   ((MoveResponseReceived(true,IR,SluiceMap(s,Outside)).waferStatusUpdateSent(IR, Empty).waferStatusUpdateSent(SluiceMap(s,Outside),Unprojected).MoveDoneSent(true,IR,SluiceMap(s,Outside)).checkCloseSent(SluiceMap(s,Outside)))
+			            ((waferBroadcastReceived(IR,Unprojected)).(sum s:Sluice.MoveReqSent(IR,SluiceMap(s,Outside)).
+                           	   (
+(MoveResponseReceived(true,IR,SluiceMap(s,Outside)).waferStatusUpdateSent(IR, Empty).waferStatusUpdateSent(SluiceMap(s,Outside),Unprojected).MoveDoneSent(true,IR,SluiceMap(s,Outside)).checkCloseSent(SluiceMap(s,Outside)))
 								+ 
-								(MoveResponseReceived(false, IR, SluiceMap(s,Outside)).MoveDoneSent(false, IR, SluiceMap(s,Outside)))))
+								(MoveResponseReceived(false, IR, SluiceMap(s,Outside)).MoveDoneSent(false, IR, SluiceMap(s,Outside)).resendBroadcastSent(IR,Unprojected))))
 						))).Robot1;
 
 Robot2  = (sum s:Sluice.((waferBroadcastReceived(SluiceMap(s,Outside),Unprojected).sluiceClosedReceived(true,SluiceMap(s,Outside)). MoveReqSent(SluiceMap(s,Inside),WR_I).((MoveResponseReceived(true,SluiceMap(s,Inside),WR_I).waferStatusUpdateSent(SluiceMap(s, Inside), Empty).waferStatusUpdateSent(WR_I,Unprojected).MoveDoneSent(true,SluiceMap(s,Inside),WR_I).checkCloseSent(SluiceMap(s,Inside)))
 								 + 	
-						   	    (MoveResponseReceived(false, SluiceMap(s,Inside),WR_I).MoveDoneSent(false, SluiceMap(s,Inside),WR_I))))
+						   	    (MoveResponseReceived(false, SluiceMap(s,Inside),WR_I).MoveDoneSent(false, SluiceMap(s,Inside),WR_I).resendBroadcastSent(SluiceMap(s,Outside),Unprojected))))
 							+ 
 						 (waferBroadcastReceived(WR_O,Projected).(sum s:Sluice.MoveReqSent(WR_O,SluiceMap(s,Inside)).
 							   ((MoveResponseReceived(true,WR_O,SluiceMap(s,Inside)).waferStatusUpdateSent(WR_O, Empty).waferStatusUpdateSent(SluiceMap(s,Inside),Projected).
 								 	MoveDoneSent(true, WR_O,SluiceMap(s,Inside)).checkCloseSent(SluiceMap(s,Inside)))
 								+ 
-								(MoveResponseReceived(false,WR_O,SluiceMap(s,Inside)).MoveDoneSent(false,WR_O,SluiceMap(s,Inside)))))
+								(MoveResponseReceived(false,WR_O,SluiceMap(s,Inside)).MoveDoneSent(false,WR_O,SluiceMap(s,Inside)).resendBroadcastSent(WR_O,Projected))))
 						 ))).Robot2;
 
 % R3 can pickup wafers only from position WR_I and place wafers only at position IPS.
 % The movemements can happen only when there is an unprojected wafer at the WR_I or when there is a projected wafer at IPS.
 
-Robot3  = sum s:Sluice.((waferBroadcastReceived(WR_I,Unprojected).sluiceClosedReceived(true,SluiceMap(s,Inside)).MoveReqSent(WR_I,IPS).MoveResponseReceived(true,WR_I,IPS).
-			 	waferStatusUpdateSent(WR_I, Empty).waferStatusUpdateSent(IPS,Unprojected).MoveDoneSent(true, WR_I,IPS)
+Robot3  = sum s:Sluice.((waferBroadcastReceived(WR_I,Unprojected).sluiceClosedReceived(true,SluiceMap(s,Inside)).MoveReqSent(WR_I,IPS).(MoveResponseReceived(true,WR_I,IPS).
+			 	waferStatusUpdateSent(WR_I, Empty).waferStatusUpdateSent(IPS,Unprojected).MoveDoneSent(true, WR_I,IPS))
+				+ 
+				MoveResponseReceived(false, WR_I, IPS).MoveDoneSent(false, WR_I, IPS).resendBroadcastSent(WR_I,Unprojected))
 			+ 
-		  (waferBroadcastReceived(IPS,Projected).MoveReqSent(IPS,WR_O).MoveResponseReceived(true,IPS,WR_O).
-				waferStatusUpdateSent(IPS, Empty).waferStatusUpdateSent(WR_O,Projected).MoveDoneSent(true, IPS,WR_O)))).Robot3;
+		  ((waferBroadcastReceived(IPS,Projected).MoveReqSent(IPS,WR_O).(MoveResponseReceived(true,IPS,WR_O).
+				waferStatusUpdateSent(IPS, Empty).waferStatusUpdateSent(WR_O,Projected).MoveDoneSent(true, IPS,WR_O)
+				+
+				MoveResponseReceived(false, IPS, WR_O).MoveDoneSent(false, IPS, WR_O).resendBroadcastSent(IPS,Projected))))).Robot3;
 
 % The image projection system begins its operations when an unprojected wafer is received. It then performs the image projection and updates the controller about the same.
 ImageProjectionSystem = (waferBroadcastReceived(IPS,Unprojected).beginProjection.endProjection.waferStatusUpdateSent(IPS, Projected)).ImageProjectionSystem; 
@@ -185,6 +192,11 @@ WaferPositionTracker(start: Bool, IRw: Wafer, ORw: Wafer, S1w: Wafer, S2w: Wafer
 				((p == IPS) ->
 					controllerWaferResponseSent(p,IPSw).WaferPositionTracker())
 		))%;
+
+		+ (sum p:Position, w:Wafer.resendBroadcastReceived(p,w).(
+					waferBroadcastSent(p,w).WaferPositionTracker())
+
+		)
 			
 
 		
@@ -272,7 +284,7 @@ init
 			MoveReq,MoveResponse,MoveDone,
 			controllerWaferRequest,controllerWaferResponse,	
 			beginProjection,endProjection,projectionUpdate,
-			registerEmpty, emptyOutputRack
+			registerEmpty, emptyOutputRack, resendBroadcast
 		  },
 
     comm  ({ 
@@ -287,9 +299,10 @@ init
 			waferBroadcastSent | waferBroadcastReceived -> waferBroadcast,
 			controllerWaferRequestSent | controllerWaferRequestReceived -> controllerWaferRequest,
 			controllerWaferResponseSent | controllerWaferResponseReceived -> controllerWaferResponse,
-  			projectionUpdateSent|projectionUpdateReceived -> projectionUpdate
+  			projectionUpdateSent|projectionUpdateReceived -> projectionUpdate,
+			resendBroadcastSent|resendBroadcastReceived -> resendBroadcast
       },
        
       		Robot1 || Robot2 ||Robot3|| ImageProjectionSystem||Sluice(S1,false,false,false,false)||Sluice(S2,false,false,false,false)||Controller||    
-	 	    WaferPositionTracker(true, Empty, Empty, Empty, Empty, Empty, Empty, Empty) || OutputRack || InputRack
+	 	    WaferPositionTracker(true, Empty, Empty, Unprojected, Empty, Empty, Empty, Empty) || OutputRack || InputRack
       	 ));

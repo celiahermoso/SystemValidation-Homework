@@ -46,8 +46,6 @@ act
 	
 	registerEmpty, emptyOutputRack;
 
-	resendBroadcastSent, resendBroadcastReceived, resendBroadcast: Position # Wafer;
-
 	errorDoorStuckSent, errorDoorStuckReceived, errorDoorStuck: Position;
 
 	sluice1Stuck, sluice2Stuck, systemShutdown;
@@ -211,10 +209,6 @@ WaferPositionTracker(start: Bool, IRw: Wafer, ORw: Wafer, S1w: Wafer, S2w: Wafer
 					controllerWaferResponseSent(p,IPSw).WaferPositionTracker())
 		))%;
 
-		+ (sum p:Position, w:Wafer.resendBroadcastReceived(p,w).(
-					waferBroadcastSent(p,w).WaferPositionTracker())
-
-		)
 			
 
 		
@@ -338,7 +332,7 @@ init
 			MoveReq,MoveResponse,MoveDone,
 			controllerWaferRequest,controllerWaferResponse,	
 			beginProjection,endProjection,projectionUpdate,
-			registerEmpty, emptyOutputRack, resendBroadcast,
+			registerEmpty, emptyOutputRack,
 			errorDoorStuck, systemShutdown, sluice1Stuck, sluice2Stuck,
 			signalDoorStuck, requestWafer
 		  },
@@ -355,7 +349,6 @@ init
 			waferBroadcastSent | waferBroadcastReceived -> waferBroadcast,
 			controllerWaferRequestSent | controllerWaferRequestReceived -> controllerWaferRequest,
 			controllerWaferResponseSent | controllerWaferResponseReceived -> controllerWaferResponse,
-			resendBroadcastSent|resendBroadcastReceived -> resendBroadcast,
 			errorDoorStuckSent|errorDoorStuckReceived -> errorDoorStuck,
 			requestWaferSent|requestWaferReceived -> requestWafer
       },

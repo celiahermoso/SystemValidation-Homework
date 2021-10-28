@@ -42,7 +42,7 @@ act
 	% Response sent by the wafer tracker to the controller about the status of a wafer in the current position.
 	controllerWaferResponseSent, controllerWaferResponseReceived, controllerWaferResponse: Position # Wafer;
 	% Actions at the Image Projection System
-	beginProjection,endProjection,projectionUpdateSent,projectionUpdateReceived,projectionUpdate,asd;
+	beginProjection,endProjection,projectionUpdate;
 	
 	registerEmpty, emptyOutputRack;
 
@@ -51,8 +51,6 @@ act
 	errorDoorStuckSent, errorDoorStuckReceived, errorDoorStuck: Sluice;
 
 	sluice1Stuck, sluice2Stuck, systemShutdown;
-
-	waferTakenOutSent, waferTakenOutReceived, waferTakenOut;
 
 proc 
 
@@ -100,7 +98,7 @@ Robot1 = (sum s:Sluice.((waferBroadcastReceived(SluiceMap(s,Inside),Projected).s
 								waferStatusUpdateSent(IR, Empty).waferStatusUpdateSent(SluiceMap(s',Outside),Unprojected).
 								MoveDoneSent(true,IR,SluiceMap(s',Outside)).checkCloseSent(SluiceMap(s',Outside))
 								+
-								(MoveResponseReceived(false, IR, SluiceMap(s',Outside)).MoveDoneSent(false, IR, SluiceMap(s', Outside)).resendBroadcastSent(IR,Unprojected))))))
+								(MoveResponseReceived(false, IR, SluiceMap(s',Outside)).MoveDoneSent(false, IR, SluiceMap(s', Outside)))))))
 						)
 
 	)
@@ -110,7 +108,7 @@ Robot2  = (sum s:Sluice.((waferBroadcastReceived(SluiceMap(s,Outside),Unprojecte
 						((MoveResponseReceived(true,SluiceMap(s,Inside),WR_I).waferStatusUpdateSent(SluiceMap(s, Inside), Empty).
 								waferStatusUpdateSent(WR_I,Unprojected).MoveDoneSent(true,SluiceMap(s,Inside),WR_I).checkCloseSent(SluiceMap(s,Inside)))
 								 + 	
-						   	    (MoveResponseReceived(false, SluiceMap(s,Inside),WR_I).MoveDoneSent(false, SluiceMap(s,Inside),WR_I).resendBroadcastSent(SluiceMap(s,Outside),Unprojected))))
+						   	    (MoveResponseReceived(false, SluiceMap(s,Inside),WR_I).MoveDoneSent(false, SluiceMap(s,Inside),WR_I))))
 							+ 
 						 (waferBroadcastReceived(WR_O,Projected).(sum s:Sluice.sum s':Sluice.(s!=s')->(MoveReqSent(WR_O, SluiceMap(s, Inside)).
 							(MoveResponseReceived(true, WR_O, SluiceMap(s, Inside)).
@@ -121,7 +119,7 @@ Robot2  = (sum s:Sluice.((waferBroadcastReceived(SluiceMap(s,Outside),Unprojecte
 							MoveResponseReceived(true, WR_O, SluiceMap(s', Inside)).waferStatusUpdateSent(WR_O, Empty).waferStatusUpdateSent(SluiceMap(s', Inside), Projected).
 							MoveDoneSent(true, WR_O, SluiceMap(s', Inside)).checkCloseSent(SluiceMap(s', Inside))
 							+
-							MoveResponseReceived(false, WR_O, SluiceMap(s', Inside)).MoveDoneSent(false, WR_O, SluiceMap(s', Inside)).resendBroadcastSent(WR_O,Projected)))))))).Robot2;
+							MoveResponseReceived(false, WR_O, SluiceMap(s', Inside)).MoveDoneSent(false, WR_O, SluiceMap(s', Inside))))))))).Robot2;
 
 % R3 can pickup wafers only from position WR_I and place wafers only at position IPS.
 % The movemements can happen only when there is an unprojected wafer at the WR_I or when there is a projected wafer at IPS.
@@ -133,7 +131,7 @@ Robot3  = waferBroadcastReceived(WR_I,Unprojected).(sum s:Sluice.sluiceClosedRec
 
 
 % The image projection system begins its operations when an unprojected wafer is received. It then performs the image projection and updates the controller about the same.
-ImageProjectionSystem = (waferBroadcastReceived(IPS,Unprojected).beginProjection.endProjection.waferStatusUpdateSent(IPS, Projected)).ImageProjectionSystem; 
+ImageProjectionSystem = (waferBroadcastReceived(IPS,Unprojected).beginProjection.projectionUpdate.endProjection.waferStatusUpdateSent(IPS, Projected)).ImageProjectionSystem; 
 
 % A wafer position tracker keeps record of the movement of the wafer in the system. Everytime a wafer status update is received from a particular position in the system, the wafer tracker updates itself. If the status of the wafer is "Empty", that means that the position is now empty and has no wafer. In this case, the wafer position tracker registers this. If the wafer status is Unprojected or Projected, the wafer tracker sends a message about this with the corresponding position, so that the robots or the IPS can react to this. The wafer information is also passed on to the controller to direct the wafer movements in and out of the system accurately.
 
@@ -231,7 +229,7 @@ MoveResponseReceived(true, src, des).waferStatusUpdateSent(src, Empty).waferStat
 																						MoveDoneSent(true, src, des).((des == S1_Out || des == S2_Out || des == S1_In || des == S2_In) -> checkCloseSent(des)
 																													+(src == S1_Out || src == S2_Out || src == S1_In || src == S2_In) -> checkCloseSent(src))
 																		<>
-MoveResponseReceived(true, src, des).waferStatusUpdateSent(src, Empty).waferStatusUpdateSent(des, w).MoveDoneSent(true, src, des)) +	MoveResponseReceived(false, src, des).MoveDoneSent(false, src, des).resendBroadcastSent(src, w));
+MoveResponseReceived(true, src, des).waferStatusUpdateSent(src, Empty).waferStatusUpdateSent(des, w).MoveDoneSent(true, src, des)) +	MoveResponseReceived(false, src, des).MoveDoneSent(false, src, des));
 
 Controller(s1Stuck: Bool, s2Stuck: Bool) = (sum src, des: Position.
 	(
@@ -315,7 +313,7 @@ Controller(s1Stuck: Bool, s2Stuck: Bool) = (sum src, des: Position.
  
 init 
 
-  	allow ({pump,asd,
+  	allow ({pump,
 			checkOpen,checkClose,
 			SluiceOpen,SluiceClose,sluiceOpenSignal,sluiceClosedSignal,
 			waferBroadcast,waferStatusUpdate,
@@ -324,7 +322,7 @@ init
 			beginProjection,endProjection,projectionUpdate,
 			registerEmpty, emptyOutputRack, resendBroadcast,
 			errorDoorStuck, systemShutdown, sluice1Stuck, sluice2Stuck,
-			signalDoorStuck, waferTakenOut
+			signalDoorStuck
 		  },
 
     comm  ({ 
@@ -339,7 +337,6 @@ init
 			waferBroadcastSent | waferBroadcastReceived -> waferBroadcast,
 			controllerWaferRequestSent | controllerWaferRequestReceived -> controllerWaferRequest,
 			controllerWaferResponseSent | controllerWaferResponseReceived -> controllerWaferResponse,
-  			projectionUpdateSent|projectionUpdateReceived -> projectionUpdate,
 			resendBroadcastSent|resendBroadcastReceived -> resendBroadcast,
 			errorDoorStuckSent|errorDoorStuckReceived -> errorDoorStuck
       },

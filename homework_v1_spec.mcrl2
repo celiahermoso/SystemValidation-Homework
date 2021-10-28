@@ -48,9 +48,11 @@ act
 
 	resendBroadcastSent, resendBroadcastReceived, resendBroadcast: Position # Wafer;
 
-	errorDoorStuckSent, errorDoorStuckReceived, errorDoorStuck: Sluice;
+	errorDoorStuckSent, errorDoorStuckReceived, errorDoorStuck: Position;
 
 	sluice1Stuck, sluice2Stuck, systemShutdown;
+
+	requestWaferSent, requestWaferReceived, requestWafer;
 
 proc 
 
@@ -73,9 +75,9 @@ Sluice(s:Sluice, outsideDoor:Bool, insideDoor:Bool, outsideDoorStuck:Bool, insid
     ((!outsideDoor && insideDoor) -> 
 		checkCloseReceived(SluiceMap(s,Inside)).SluiceClose(s,Inside).sluiceClosedSent(true,SluiceMap(s,Inside)).Sluice(insideDoor=false))  
 +
-    checkOpenReceived(SluiceMap(s,Outside)).(signalDoorStuck(s,Outside).(sluiceOpenSent(false, SluiceMap(s,Outside))+sluiceClosedSent(false, SluiceMap(s,Outside))). errorDoorStuckSent(s) . Sluice(outsideDoorStuck=true))
+    checkOpenReceived(SluiceMap(s,Outside)).(signalDoorStuck(s,Outside).(sluiceOpenSent(false, SluiceMap(s,Outside))+sluiceClosedSent(false, SluiceMap(s,Outside))). errorDoorStuckSent(SluiceMap(s,Outside)) . Sluice(outsideDoorStuck=true))
 +
-    checkOpenReceived(SluiceMap(s,Inside)).(signalDoorStuck(s,Inside).(sluiceOpenSent(false, SluiceMap(s,Inside))+ sluiceClosedSent(false, SluiceMap(s,Inside))). errorDoorStuckSent(s) .Sluice(insideDoorStuck=true)));			
+    checkOpenReceived(SluiceMap(s,Inside)).(signalDoorStuck(s,Inside).(sluiceOpenSent(false, SluiceMap(s,Inside))+ sluiceClosedSent(false, SluiceMap(s,Inside))). errorDoorStuckSent(SluiceMap(s,Inside)) .Sluice(insideDoorStuck=true)));			
 
 % R1 can pickup wafers only from positions IR,S1_Out or S2_Out and place wafers only at positions S1_Out,S2_Out or OR
 % R2 can pickup wafers only from positions S1_In,S2_In,WR_I,WR_O and place wafers only at positions S1_In,S2_In,WR_I
@@ -294,22 +296,38 @@ Controller(s1Stuck: Bool, s2Stuck: Bool) = (sum src, des: Position.
 		 )
        ) 
 	+
-	(sum s: Sluice.errorDoorStuckReceived(s).
-		(s == S1) -> 
-			(s2Stuck) ->
+	(sum p: Position.errorDoorStuckReceived(p).
+		((p == S1_In || p == S1_Out) ->
+			((s2Stuck) -> 
 				systemShutdown
-				<>
-				sluice1Stuck.Controller(s1Stuck = true)
-		<>
-			(s1Stuck) ->
+				<>(
+				(p == S1_In) -> 
+					controllerWaferRequestSent(p).(
+						controllerWaferResponseReceived(p, Unprojected).requestWaferSent.sluice1Stuck.Controller(s1Stuck = true) + 
+						controllerWaferResponse(p, Empty).sluice1Stuck.Controller(s1Stuck = true)) + 
+				(p == S1_Out) ->
+					controllerWaferRequestSent(p).(
+						controllerWaferResponseReceived(p, Projected).requestWaferSent.sluice1Stuck.Controller(s1Stuck = true) + 
+						controllerWaferResponse(p, Empty).sluice1Stuck.Controller(s1Stuck = true)))) +
+		(p == S2_In || p == S2_Out) ->
+			((s1Stuck) ->
 				systemShutdown
-				<>
-				sluice2Stuck.Controller(s2Stuck = true));
+				<>(
+				(p == S2_In) -> 
+					controllerWaferRequestSent(p).(
+						controllerWaferResponseReceived(p, Unprojected).requestWaferSent.sluice2Stuck.Controller(s2Stuck = true) + 
+						controllerWaferResponseReceived(p, Empty).sluice2Stuck.Controller(s2Stuck = true)) + 
+				(p == S2_Out) ->
+					controllerWaferRequestSent(p).(
+						controllerWaferResponseReceived(p, Projected).requestWaferSent.sluice2Stuck.Controller(s2Stuck = true) + 
+						controllerWaferResponseReceived(p, Empty).sluice2Stuck.Controller(s2Stuck = true))
+				))));
+		
 
 
 	OutputRack = waferBroadcastReceived(OR, Projected).emptyOutputRack.waferStatusUpdateSent(OR, Empty).OutputRack;
 
-	InputRack = waferBroadcastReceived(OR, Empty).waferStatusUpdateSent(IR, Unprojected).InputRack;
+	InputRack =(requestWaferReceived + waferBroadcastReceived(OR, Empty)).waferStatusUpdateSent(IR, Unprojected).InputRack;
  
 init 
 
@@ -322,7 +340,7 @@ init
 			beginProjection,endProjection,projectionUpdate,
 			registerEmpty, emptyOutputRack, resendBroadcast,
 			errorDoorStuck, systemShutdown, sluice1Stuck, sluice2Stuck,
-			signalDoorStuck
+			signalDoorStuck, requestWafer
 		  },
 
     comm  ({ 
@@ -338,7 +356,8 @@ init
 			controllerWaferRequestSent | controllerWaferRequestReceived -> controllerWaferRequest,
 			controllerWaferResponseSent | controllerWaferResponseReceived -> controllerWaferResponse,
 			resendBroadcastSent|resendBroadcastReceived -> resendBroadcast,
-			errorDoorStuckSent|errorDoorStuckReceived -> errorDoorStuck
+			errorDoorStuckSent|errorDoorStuckReceived -> errorDoorStuck,
+			requestWaferSent|requestWaferReceived -> requestWafer
       },
        
       		Robot1 || Robot2 ||Robot3|| ImageProjectionSystem||Sluice(S1,false,false,false,false)||Sluice(S2,false,false,false,false)||Controller(false, false)||    

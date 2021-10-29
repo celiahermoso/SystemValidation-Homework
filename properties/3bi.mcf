@@ -1,0 +1,1 @@
+[true*.SluiceClose(S2, Inside).signalDoorStuck(S2, Outside).true*.(SluiceOpen(S2, Outside))] false

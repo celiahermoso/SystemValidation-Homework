@@ -1,0 +1,1 @@
+[true*.SluiceOpen(S1, Outside).!SluiceClose(S1, Outside)*.SluiceOpen(S1, Inside)] false

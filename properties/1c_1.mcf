@@ -1,0 +1,1 @@
+[true*.SluiceClose(S1, Inside).!SluiceOpen(S1, Inside)*.MoveDone(true, S1_In, WR_I)] false

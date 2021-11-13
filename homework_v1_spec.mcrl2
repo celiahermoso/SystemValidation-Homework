@@ -32,7 +32,7 @@ act
 	% Response sent by controller to the robots' move request, true means approved, false means denied.
 	MoveResponseSent, MoveResponseReceived, MoveResponse: Bool # Position # Position; 
 	% Signal from the robots to the controller that they have moved to the destination.
-	MoveDoneSent, MoveDoneReceived, MoveDone: Bool # Position # Position; 
+	MoveDoneSent, MoveDoneReceived, Move: Bool # Position # Position; 
   	% Updates to the wafer tracker about the changes in the wafer positions and status.
     waferStatusUpdateSent, waferStatusUpdateReceived, waferStatusUpdate: Position # Wafer; 
 	% Updates to the robots and the controller about the changes in the wafer positions and status.
@@ -83,7 +83,7 @@ Sluice(s:Sluice, outsideDoor:Bool, insideDoor:Bool, outsideDoorStuck:Bool, insid
 % The movemements can happen only when there is a wafer of the appropriate status at the current position and only if the controller has given the permission to move
   
 
-Robot1 = (sum s:Sluice.((waferBroadcastReceived(SluiceMap(s,Inside),Projected).sluiceClosedReceived(true,SluiceMap(s,Inside)).Move(SluiceMap(s,Outside),OR, Projected)) 
+Robot1 = (sum s:Sluice.((waferBroadcastReceived(SluiceMap(s,Inside),Projected).sluiceClosedReceived(true,SluiceMap(s,Inside)).MoveProc(SluiceMap(s,Outside),OR, Projected)) 
 						    +
 			            (waferBroadcastReceived(IR,Unprojected).(sum s:Sluice.sum s':Sluice.(s!=s')->(MoveReqSent(IR,SluiceMap(s,Outside)).
                            	   ((MoveResponseReceived(true,IR,SluiceMap(s,Outside)).
@@ -101,7 +101,7 @@ Robot1 = (sum s:Sluice.((waferBroadcastReceived(SluiceMap(s,Inside),Projected).s
 	)
 )).Robot1;
 
-Robot2  = (sum s:Sluice.((waferBroadcastReceived(SluiceMap(s,Outside),Unprojected).sluiceClosedReceived(true,SluiceMap(s,Outside)).Move(SluiceMap(s,Inside),WR_I, Unprojected))
+Robot2  = (sum s:Sluice.((waferBroadcastReceived(SluiceMap(s,Outside),Unprojected).sluiceClosedReceived(true,SluiceMap(s,Outside)).MoveProc(SluiceMap(s,Inside),WR_I, Unprojected))
 							+ 
 						 (waferBroadcastReceived(WR_O,Projected).(sum s:Sluice.sum s':Sluice.(s!=s')->(MoveReqSent(WR_O, SluiceMap(s, Inside)).
 							(MoveResponseReceived(true, WR_O, SluiceMap(s, Inside)).
@@ -117,9 +117,9 @@ Robot2  = (sum s:Sluice.((waferBroadcastReceived(SluiceMap(s,Outside),Unprojecte
 % R3 can pickup wafers only from position WR_I and place wafers only at position IPS.
 % The movemements can happen only when there is an unprojected wafer at the WR_I or when there is a projected wafer at IPS.
 
-Robot3  = waferBroadcastReceived(WR_I,Unprojected).(sum s:Sluice.sluiceClosedReceived(true,SluiceMap(s,Inside))).Move(WR_I, IPS, Unprojected).Robot3
+Robot3  = waferBroadcastReceived(WR_I,Unprojected).(sum s:Sluice.sluiceClosedReceived(true,SluiceMap(s,Inside))).MoveProc(WR_I, IPS, Unprojected).Robot3
 			+ 
-		  waferBroadcastReceived(IPS,Projected).Move(IPS, WR_O, Projected).Robot3;
+		  waferBroadcastReceived(IPS,Projected).MoveProc(IPS, WR_O, Projected).Robot3;
 
 
 
@@ -212,7 +212,7 @@ WaferPositionTracker(start: Bool, IRw: Wafer, ORw: Wafer, S1w: Wafer, S2w: Wafer
 % It tracks the robot movements and ensures sluice doors are appropriately closed after a movement. 
 % It keeps track of the wafer movements and their statuses to ensure that wafers go in the right direction (unprojected wafers move towards the IPS, projected wafers move away from the IPS)
 
-Move(src: Position, des: Position, w: Wafer) = MoveReqSent(src, des).
+MoveProc(src: Position, des: Position, w: Wafer) = MoveReqSent(src, des).
 					((((des == S1_Out || des == S2_Out || des == S1_In || des == S2_In) || (src == S1_Out || src == S2_Out || src == S1_In || src == S2_In)) ->
 																		
 					MoveResponseReceived(true, src, des).waferStatusUpdateSent(src, Empty).waferStatusUpdateSent(des, w).
@@ -326,31 +326,13 @@ Controller(s1Stuck: Bool, s2Stuck: Bool) = (sum src, des: Position.
 	InputRack =(requestWaferReceived + waferBroadcastReceived(OR, Empty)).waferStatusUpdateSent(IR, Unprojected).InputRack;
  
 init 
-	hide({
-			MoveReq,
-			MoveResponse,
-			sluiceOpenSignal,
-			sluiceClosedSignal,
-			checkOpen,
-			checkClose,
-			waferStatusUpdate,
-			controllerWaferRequest,
-			controllerWaferResponse,
-			errorDoorStuck,
-			requestWafer,
-			registerEmpty,
-			sluice1Stuck,
-			sluice2Stuck,
-			beginProjection,
-			endProjection
 
-	},
 
   	allow ({pump,
 			checkOpen,checkClose,
 			SluiceOpen,SluiceClose,sluiceOpenSignal,sluiceClosedSignal,
 			waferBroadcast,waferStatusUpdate,
-			MoveReq,MoveResponse,MoveDone,
+			MoveReq,MoveResponse,Move,
 			controllerWaferRequest,controllerWaferResponse,	
 			beginProjection,endProjection,projectionUpdate,
 			registerEmpty, emptyOutputRack,
@@ -361,7 +343,7 @@ init
     comm  ({ 
 			MoveReqSent | MoveReqReceived -> MoveReq,
 			MoveResponseSent | MoveResponseReceived -> MoveResponse,
-			MoveDoneSent | MoveDoneReceived -> MoveDone,
+			MoveDoneSent | MoveDoneReceived -> Move,
 			sluiceOpenSent | sluiceOpenReceived -> sluiceOpenSignal,
 			sluiceClosedSent | sluiceClosedReceived -> sluiceClosedSignal,
 			checkOpenSent | checkOpenReceived -> checkOpen,
@@ -377,4 +359,4 @@ init
       		Robot1 || Robot2 ||Robot3|| ImageProjectionSystem||Sluice(S1,false,false,false,false)||Sluice(S2,false,false,false,false)||Controller(false, false)||    
 	 	    WaferPositionTracker(true, Empty, Empty, Empty,  Empty, Empty, Empty, Empty) || OutputRack || InputRack
       	 
-)));
+));

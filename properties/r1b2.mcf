@@ -1,0 +1,1 @@
+[true*.!SluiceOpen(S1, Outside)*.true*.Move(true, S1_Out, OR)]false

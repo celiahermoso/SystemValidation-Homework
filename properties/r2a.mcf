@@ -1,0 +1,1 @@
+[true*.Move(true, IR, S1_Out).!Move(true, S1_Out, OR)*. Move(true, IR, S1_Out)] false

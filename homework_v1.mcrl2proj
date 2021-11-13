@@ -1,4 +1,21 @@
 <root>
  <spec>homework_v1_spec.mcrl2</spec>
- <properties/>
+ <properties>
+  <property>r1a</property>
+  <property>r1b</property>
+  <property>r1c</property>
+  <property>r1d</property>
+  <property>r2a</property>
+  <property>r2b</property>
+  <property>r2c</property>
+  <property>r2d</property>
+  <property>r2e</property>
+  <property>r3</property>
+  <property>r4</property>
+  <property>r5a</property>
+  <property>r5b</property>
+  <property>r6</property>
+  <property>deadlock</property>
+  <property>r1b2</property>
+ </properties>
 </root>

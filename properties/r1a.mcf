@@ -1,1 +1,1 @@
-[!SluiceOpen(S2, Outside)*.Move(true, IR, S2_Out).true*.!SluiceOpen(S2, Outside)*.Move(true, IR, S2_Out)] false
+[!SluiceOpen(S1, Outside)*.Move(true, IR, S1_Out).true*.SluiceClose(S1,Outside).!SluiceOpen(S1, Outside)*.Move(true, IR, S1_Out)] false

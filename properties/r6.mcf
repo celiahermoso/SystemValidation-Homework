@@ -1,1 +1,1 @@
-[true*.pump(S1).SluiceOpen(S1, Inside)] false
+[true*.SluiceClose(S1, Outside).!pump(S1)*.SluiceOpen(S1, Inside)] false
